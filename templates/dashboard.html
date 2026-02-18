@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebRTC Chat - WhatsApp Style</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            height: 100vh; 
+        }
+        
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        
+        .dashboard { 
+            background: white; 
+            border-radius: 10px; 
+            padding: 20px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2); 
+        }
+        
+        .user-button { 
+            width: 200px; 
+            height: 200px; 
+            margin: 20px auto; 
+            display: block; 
+            background: linear-gradient(45deg, #FE6B8B 30%, #FF8E53 90%); 
+            border: none; 
+            border-radius: 50%; 
+            color: white; 
+            font-size: 24px; 
+            cursor: pointer; 
+            transition: transform 0.3s; 
+            box-shadow: 0 3px 15px rgba(0,0,0,0.2); 
+        }
+        
+        .user-button:hover { transform: scale(1.05); }
+        
+        .modal { 
+            display: none; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.5); 
+            z-index: 1000;
+        }
+        
+        .modal-content { 
+            background: white; 
+            width: 400px; 
+            margin: 100px auto; 
+            padding: 20px; 
+            border-radius: 10px; 
+        }
+        
+        .chat-messages { 
+            height: 300px; 
+            overflow-y: auto; 
+            border: 1px solid #ddd; 
+            padding: 10px; 
+            margin-bottom: 10px; 
+        }
+        
+        .chat-input { 
+            width: 100%; 
+            padding: 10px; 
+            margin-bottom: 10px; 
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        .send-btn { 
+            background: #4CAF50; 
+            color: white; 
+            padding: 10px 20px; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+        }
+        
+        .call-btn { 
+            background: #2196F3; 
+            color: white; 
+            padding: 10px 20px; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            margin: 5px; 
+        }
+        
+        .red-btn { 
+            background: #f44336; 
+            color: white; 
+            padding: 10px 20px; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+        }
+        
+        /* WhatsApp-style Call Screen */
+        .call-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0b0b0b;
+            z-index: 2000;
+            display: none;
+        }
+        
+        .call-screen.active {
+            display: block;
+        }
+        
+        .remote-video-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            background: #1a1a1a;
+        }
+        
+        #remoteVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .local-video-container {
+            position: absolute;
+            bottom: 100px;
+            right: 20px;
+            width: 150px;
+            height: 200px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid white;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            z-index: 2001;
+        }
+        
+        #localVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .call-info {
+            position: absolute;
+            top: 50px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            color: white;
+            z-index: 2001;
+        }
+        
+        .caller-name {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
+        
+        .call-timer {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+        
+        .call-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            z-index: 2001;
+        }
+        
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        
+        .control-btn:hover {
+            transform: scale(1.1);
+        }
+        
+        .control-btn.mic {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .control-btn.mic.muted {
+            background: #f44336;
+        }
+        
+        .control-btn.camera {
+            background: #2196F3;
+            color: white;
+        }
+        
+        .control-btn.camera.off {
+            background: #9e9e9e;
+        }
+        
+        .control-btn.end-call {
+            background: #f44336;
+            color: white;
+            width: 70px;
+            height: 70px;
+        }
+        
+        .control-btn.switch-camera {
+            background: #FF9800;
+            color: white;
+        }
+        
+        /* Incoming Call Alert */
+        .incoming-call {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            z-index: 3000;
+            display: none;
+            text-align: center;
+            min-width: 300px;
+        }
+        
+        .incoming-call.active {
+            display: block;
+        }
+        
+        .incoming-caller {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .incoming-type {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        
+        .incoming-actions {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+        
+        .accept-btn {
+            background: #4CAF50;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        .reject-btn {
+            background: #f44336;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        /* User online status */
+        .online-status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-left: 10px;
+        }
+        
+        .online {
+            background: #4CAF50;
+        }
+        
+        .offline {
+            background: #9e9e9e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="dashboard">
+            <h1>Welcome, <span id="currentUserName">{{ current_user == 1 and 'Alice' or 'Bob' }}</span>
+                <span class="online-status online" id="onlineStatus"></span>
+            </h1>
+            <button class="user-button" onclick="showOptions()" id="otherUserButton">
+                {{ other_name }}'s Button
+            </button>
+            <div style="text-align: center; margin-top: 20px;">
+                <span id="otherUserStatus" class="offline-status">Other user is offline</span>
+            </div>
+            <div><a href="/logout">Logout</a></div>
+        </div>
+    </div>
+
+    <!-- Options Modal -->
+    <div id="optionsModal" class="modal">
+        <div class="modal-content">
+            <h3>Choose Interaction with <span id="otherUserName">{{ other_name }}</span></h3>
+            <button class="call-btn" onclick="startChat()">💬 Chat</button>
+            <button class="call-btn" onclick="startCall('video')">📹 Video Call</button>
+            <button class="call-btn" onclick="startCall('audio')">🎤 Audio Call</button>
+            <button onclick="closeModal()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Chat Modal -->
+    <div id="chatModal" class="modal">
+        <div class="modal-content">
+            <h3>Chat with <span id="chatWith"></span></h3>
+            <div id="chatMessages" class="chat-messages"></div>
+            <input type="text" id="messageInput" class="chat-input" placeholder="Type a message...">
+            <button class="send-btn" onclick="sendMessage()">Send</button>
+            <button onclick="closeChat()">Close</button>
+        </div>
+    </div>
+
+    <!-- Incoming Call Alert -->
+    <div id="incomingCall" class="incoming-call">
+        <div class="incoming-caller" id="callerName"></div>
+        <div class="incoming-type" id="callType"></div>
+        <div class="incoming-actions">
+            <button class="accept-btn" onclick="acceptCall()">Accept</button>
+            <button class="reject-btn" onclick="rejectCall()">Decline</button>
+        </div>
+    </div>
+
+    <!-- WhatsApp-style Call Screen -->
+    <div id="callScreen" class="call-screen">
+        <div class="remote-video-container">
+            <video id="remoteVideo" autoplay playsinline></video>
+        </div>
+        
+        <div class="local-video-container" id="localVideoContainer">
+            <video id="localVideo" autoplay playsinline muted></video>
+        </div>
+        
+        <div class="call-info">
+            <div class="caller-name" id="callScreenName">{{ other_name }}</div>
+            <div class="call-timer" id="callTimer">00:00</div>
+        </div>
+        
+        <div class="call-controls">
+            <button class="control-btn mic" id="micBtn" onclick="toggleMic()">
+                🎤
+            </button>
+            <button class="control-btn camera" id="cameraBtn" onclick="toggleCamera()">
+                📹
+            </button>
+            <button class="control-btn switch-camera" id="switchCameraBtn" onclick="switchCamera()">
+                🔄
+            </button>
+            <button class="control-btn end-call" onclick="endCall()">
+                📞
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const currentUser = {{ current_user }};
+        const otherUser = {{ other_user }};
+        const otherName = "{{ other_name }}";
+        
+        // WebRTC and call variables
+        let peer = null;
+        let currentCall = null;
+        let localStream = null;
+        let callType = null;
+        let incomingCallData = null;
+        let callTimer = null;
+        let callSeconds = 0;
+        let isMuted = false;
+        let isCameraOff = false;
+        let currentVideoDevice = null;
+
+        // Initialize PeerJS
+        function initializePeer() {
+            peer = new Peer();
+            
+            peer.on('open', (id) => {
+                console.log('My peer ID:', id);
+            });
+
+            peer.on('call', (call) => {
+                navigator.mediaDevices.getUserMedia({ 
+                    video: callType === 'video', 
+                    audio: true 
+                })
+                .then(stream => {
+                    localStream = stream;
+                    document.getElementById('localVideo').srcObject = stream;
+                    call.answer(stream);
+                    setupCallHandlers(call);
+                });
+            });
+
+            peer.on('error', (err) => {
+                console.error('Peer error:', err);
+            });
+        }
+
+        // Socket event handlers
+        socket.on('connect', () => {
+            console.log('Connected to server');
+        });
+
+        socket.on('user_online', (data) => {
+            document.getElementById('otherUserStatus').textContent = 'Other user is online';
+            document.getElementById('otherUserStatus').style.color = '#4CAF50';
+        });
+
+        socket.on('user_offline', (data) => {
+            document.getElementById('otherUserStatus').textContent = 'Other user is offline';
+            document.getElementById('otherUserStatus').style.color = '#999';
+        });
+
+        socket.on('new_message', (data) => {
+            if (document.getElementById('chatModal').style.display === 'block') {
+                addMessage(data.from_name, data.message);
+            }
+        });
+
+        socket.on('message_sent', (data) => {
+            addMessage('You', data.message);
+        });
+
+        socket.on('incoming_call', (data) => {
+            incomingCallData = data;
+            document.getElementById('callerName').textContent = data.from_name;
+            document.getElementById('callType').textContent = `${data.type} call`;
+            document.getElementById('incomingCall').classList.add('active');
+            
+            // Play ringtone (you can add audio here)
+            // new Audio('/static/ringtone.mp3').play();
+        });
+
+        socket.on('call_accepted', (data) => {
+            document.getElementById('incomingCall').classList.remove('active');
+            startCallTimer();
+            showCallScreen();
+        });
+
+        socket.on('call_rejected', (data) => {
+            alert(`${data.by_name} rejected your call`);
+            cleanupCall();
+        });
+
+        socket.on('call_ended', (data) => {
+            alert('Call ended');
+            cleanupCall();
+        });
+
+        // WebRTC signaling
+        socket.on('offer', async (data) => {
+            if (!peer) initializePeer();
+            const call = peer.answer(data.offer);
+            setupCallHandlers(call);
+        });
+
+        socket.on('answer', (data) => {
+            if (currentCall) {
+                currentCall.answer(data.answer);
+                startCallTimer();
+                showCallScreen();
+            }
+        });
+
+        socket.on('ice-candidate', (data) => {
+            if (currentCall) {
+                currentCall.addIceCandidate(data.candidate);
+            }
+        });
+
+        function setupCallHandlers(call) {
+            currentCall = call;
+            
+            call.on('stream', (remoteStream) => {
+                document.getElementById('remoteVideo').srcObject = remoteStream;
+            });
+
+            call.on('close', () => {
+                cleanupCall();
+            });
+
+            call.on('error', (err) => {
+                console.error('Call error:', err);
+                cleanupCall();
+            });
+        }
+
+        function startCall(type) {
+            callType = type;
+            socket.emit('call_user', { to: otherUser, type: type });
+            document.getElementById('optionsModal').style.display = 'none';
+            
+            const constraints = {
+                audio: true,
+                video: type === 'video'
+            };
+            
+            navigator.mediaDevices.getUserMedia(constraints)
+                .then(stream => {
+                    localStream = stream;
+                    document.getElementById('localVideo').srcObject = stream;
+                    
+                    if (type === 'audio') {
+                        document.getElementById('localVideoContainer').style.display = 'none';
+                    }
+                })
+                .catch(err => {
+                    console.error('Error accessing media devices:', err);
+                    alert('Could not access camera/microphone');
+                });
+        }
+
+        function acceptCall() {
+            socket.emit('accept_call', { from: incomingCallData.from });
+            document.getElementById('incomingCall').classList.remove('active');
+            
+            if (!localStream) {
+                navigator.mediaDevices.getUserMedia({ 
+                    video: incomingCallData.type === 'video', 
+                    audio: true 
+                })
+                .then(stream => {
+                    localStream = stream;
+                    document.getElementById('localVideo').srcObject = stream;
+                    
+                    if (!peer) initializePeer();
+                    
+                    const call = peer.call(incomingCallData.from, stream);
+                    setupCallHandlers(call);
+                    
+                    if (incomingCallData.type === 'audio') {
+                        document.getElementById('localVideoContainer').style.display = 'none';
+                    }
+                    
+                    showCallScreen();
+                    startCallTimer();
+                });
+            }
+        }
+
+        function rejectCall() {
+            socket.emit('reject_call', { from: incomingCallData.from });
+            document.getElementById('incomingCall').classList.remove('active');
+        }
+
+        function showCallScreen() {
+            document.getElementById('callScreen').classList.add('active');
+            document.getElementById('callScreenName').textContent = otherName;
+        }
+
+        function startCallTimer() {
+            callSeconds = 0;
+            updateTimerDisplay();
+            
+            if (callTimer) clearInterval(callTimer);
+            callTimer = setInterval(() => {
+                callSeconds++;
+                updateTimerDisplay();
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(callSeconds / 60);
+            const seconds = callSeconds % 60;
+            document.getElementById('callTimer').textContent = 
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function toggleMic() {
+            if (localStream) {
+                const audioTracks = localStream.getAudioTracks();
+                audioTracks.forEach(track => {
+                    track.enabled = !track.enabled;
+                });
+                isMuted = !isMuted;
+                
+                const micBtn = document.getElementById('micBtn');
+                if (isMuted) {
+                    micBtn.classList.add('muted');
+                    micBtn.textContent = '🎤❌';
+                } else {
+                    micBtn.classList.remove('muted');
+                    micBtn.textContent = '🎤';
+                }
+            }
+        }
+
+        function toggleCamera() {
+            if (localStream && callType === 'video') {
+                const videoTracks = localStream.getVideoTracks();
+                videoTracks.forEach(track => {
+                    track.enabled = !track.enabled;
+                });
+                isCameraOff = !isCameraOff;
+                
+                const cameraBtn = document.getElementById('cameraBtn');
+                const localVideo = document.getElementById('localVideoContainer');
+                
+                if (isCameraOff) {
+                    cameraBtn.classList.add('off');
+                    cameraBtn.textContent = '📹❌';
+                    localVideo.style.opacity = '0.5';
+                } else {
+                    cameraBtn.classList.remove('off');
+                    cameraBtn.textContent = '📹';
+                    localVideo.style.opacity = '1';
+                }
+            }
+        }
+
+        function switchCamera() {
+            if (localStream && callType === 'video') {
+                const videoTracks = localStream.getVideoTracks();
+                if (videoTracks.length > 0) {
+                    // This is simplified - you'd need to enumerate devices and switch
+                    console.log('Camera switch requested');
+                }
+            }
+        }
+
+        function endCall() {
+            socket.emit('end_call', { to: otherUser });
+            if (currentCall) {
+                currentCall.close();
+            }
+            cleanupCall();
+        }
+
+        function cleanupCall() {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            
+            if (callTimer) {
+                clearInterval(callTimer);
+                callTimer = null;
+            }
+            
+            currentCall = null;
+            localStream = null;
+            callSeconds = 0;
+            isMuted = false;
+            isCameraOff = false;
+            
+            document.getElementById('callScreen').classList.remove('active');
+            document.getElementById('incomingCall').classList.remove('active');
+            document.getElementById('localVideoContainer').style.display = 'block';
+            document.getElementById('localVideoContainer').style.opacity = '1';
+            
+            // Reset buttons
+            document.getElementById('micBtn').classList.remove('muted');
+            document.getElementById('micBtn').textContent = '🎤';
+            document.getElementById('cameraBtn').classList.remove('off');
+            document.getElementById('cameraBtn').textContent = '📹';
+        }
+
+        // Chat functions
+        function showOptions() {
+            document.getElementById('optionsModal').style.display = 'block';
+        }
+
+        function startChat() {
+            document.getElementById('optionsModal').style.display = 'none';
+            document.getElementById('chatWith').textContent = otherName;
+            document.getElementById('chatModal').style.display = 'block';
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (message) {
+                socket.emit('private_message', {
+                    to: otherUser,
+                    message: message,
+                    timestamp: Date.now()
+                });
+                input.value = '';
+            }
+        }
+
+        function addMessage(sender, text) {
+            const messages = document.getElementById('chatMessages');
+            const msgDiv = document.createElement('div');
+            msgDiv.style.margin = '10px 0';
+            msgDiv.innerHTML = `<strong>${sender}:</strong> ${text}`;
+            messages.appendChild(msgDiv);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function closeModal() {
+            document.getElementById('optionsModal').style.display = 'none';
+        }
+
+        function closeChat() {
+            document.getElementById('chatModal').style.display = 'none';
+        }
+
+        // Handle Enter key in chat
+        document.getElementById('messageInput')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // Initialize Peer when page loads
+        window.onload = function() {
+            initializePeer();
+        };
+    </script>
+</body>
+</html> 
