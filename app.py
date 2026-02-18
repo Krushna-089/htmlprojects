@@ -7,7 +7,7 @@ app.config['SECRET_KEY'] = 'your-secret-key-change-this-in-production'
 app.config['SESSION_TYPE'] = 'filesystem'
 
 # Use threading for simpler async mode
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Simple user database
 USERS = {
