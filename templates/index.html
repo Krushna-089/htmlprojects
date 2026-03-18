@@ -2,8 +2,583 @@
 <html>
 <head>
     <title>Flask Call & Chat</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f0f0f0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            width: 100%;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: 280px;
+            background: linear-gradient(180deg, #2c3e50 0%, #1a2632 100%);
+            color: #fff;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+
+        .sidebar h3 {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #4a5568;
+            color: #ecf0f1;
+        }
+
+        .sidebar h4 {
+            font-size: 1rem;
+            margin: 15px 0 10px;
+            color: #bdc3c7;
+        }
+
+        .sidebar ul {
+            list-style: none;
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+
+        .sidebar li {
+            padding: 12px 15px;
+            margin: 5px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .sidebar li.available {
+            background: #34495e;
+            border-left: 4px solid #2ecc71;
+        }
+
+        .sidebar li.available:hover {
+            background: #3d566e;
+            transform: translateX(5px);
+        }
+
+        .sidebar li.available::before {
+            content: "●";
+            color: #2ecc71;
+            margin-right: 8px;
+            font-size: 1.2rem;
+        }
+
+        .sidebar li.busy {
+            background: #3d3f45;
+            color: #95a5a6;
+            cursor: not-allowed;
+            border-left: 4px solid #e74c3c;
+        }
+
+        .sidebar li.busy::before {
+            content: "●";
+            color: #e74c3c;
+            margin-right: 8px;
+            font-size: 1.2rem;
+        }
+
+        #logout {
+            padding: 14px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s;
+            margin-top: auto;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        #logout:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(231, 76, 60, 0.3);
+        }
+
+        /* Main Content Styles */
+        .main {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            background: #ecf0f1;
+            overflow-y: auto;
+        }
+
+        /* Status Message */
+        .status-message {
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            font-weight: 500;
+            display: none;
+            animation: slideDown 0.3s ease;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .status-message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-left: 4px solid #17a2b8;
+        }
+
+        .status-message.success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+
+        .status-message.warning {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid #ffc107;
+        }
+
+        .status-message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+
+        /* Video Container */
+        .videos {
+            display: flex;
+            gap: 15px;
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            min-height: 300px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+        }
+
+        video {
+            flex: 1;
+            max-height: 300px;
+            background: #2d2d2d;
+            border-radius: 12px;
+            object-fit: cover;
+            border: 2px solid #444;
+            transition: all 0.3s;
+        }
+
+        video:first-child {
+            border-color: #3498db;
+        }
+
+        video:last-child {
+            border-color: #2ecc71;
+        }
+
+        /* Call Controls */
+        .call-controls {
+            margin: 15px 0;
+            text-align: center;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .call-controls button {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            min-width: 140px;
+        }
+
+        #audioCallBtn {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+        }
+
+        #audioCallBtn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(52, 152, 219, 0.4);
+        }
+
+        #videoCallBtn {
+            background: linear-gradient(135deg, #27ae60, #229954);
+            color: white;
+        }
+
+        #videoCallBtn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(46, 204, 113, 0.4);
+        }
+
+        #hangupBtn {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            color: white;
+        }
+
+        #hangupBtn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(231, 76, 60, 0.4);
+        }
+
+        #testCameraBtn {
+            background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: 10px;
+        }
+
+        #testCameraBtn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(127, 140, 141, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        /* Debug Info */
+        .debug-info {
+            margin: 20px 0;
+            padding: 15px;
+            background: #2d2d2d;
+            color: #00ff00;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 0.85rem;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        .debug-info h4 {
+            color: #fff;
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+
+        .debug-info pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            line-height: 1.4;
+        }
+
+        /* Chat Section */
+        .chat {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            margin-top: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            flex: 1;
+            min-height: 200px;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            min-height: 150px;
+            max-height: 250px;
+            background: #f9f9f9;
+        }
+
+        .messages div {
+            padding: 10px 15px;
+            margin: 5px 0;
+            background: #3498db;
+            color: white;
+            border-radius: 18px 18px 18px 5px;
+            max-width: 80%;
+            word-wrap: break-word;
+            font-size: 0.95rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            animation: messageIn 0.3s ease;
+        }
+
+        .messages div:last-child {
+            margin-bottom: 0;
+        }
+
+        .messages div:nth-child(even) {
+            background: #2ecc71;
+            border-radius: 18px 18px 5px 18px;
+            margin-left: auto;
+        }
+
+        @keyframes messageIn {
+            from {
+                transform: translateY(10px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .chat-input-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat input {
+            flex: 1;
+            padding: 14px 18px;
+            border: 2px solid #e0e0e0;
+            border-radius: 30px;
+            font-size: 1rem;
+            transition: all 0.3s;
+            outline: none;
+        }
+
+        .chat input:focus {
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+        }
+
+        .chat input:disabled {
+            background: #f5f5f5;
+            border-color: #ddd;
+            cursor: not-allowed;
+        }
+
+        .chat button {
+            padding: 14px 28px;
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s;
+            min-width: 100px;
+        }
+
+        .chat button:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(52, 152, 219, 0.4);
+        }
+
+        .chat button:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
+
+        /* Mobile Responsive Styles */
+        @media screen and (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                max-height: 200px;
+                padding: 15px;
+            }
+
+            .sidebar h3 {
+                font-size: 1rem;
+                margin-bottom: 5px;
+            }
+
+            .sidebar h4 {
+                margin: 10px 0 5px;
+            }
+
+            .sidebar ul {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 5px;
+                overflow-x: auto;
+                white-space: nowrap;
+                padding-bottom: 10px;
+            }
+
+            .sidebar li {
+                display: inline-block;
+                padding: 8px 15px;
+                margin: 0;
+                font-size: 0.9rem;
+                white-space: nowrap;
+            }
+
+            #logout {
+                padding: 10px;
+                font-size: 0.9rem;
+                margin-top: 10px;
+            }
+
+            .main {
+                padding: 15px;
+            }
+
+            .videos {
+                flex-direction: column;
+                min-height: auto;
+                gap: 10px;
+            }
+
+            video {
+                max-height: 200px;
+                width: 100%;
+            }
+
+            .call-controls {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .call-controls button {
+                width: 100%;
+                padding: 12px;
+                font-size: 0.95rem;
+                min-width: auto;
+            }
+
+            #testCameraBtn {
+                width: 100%;
+                margin-left: 0;
+                margin-top: 5px;
+                justify-content: center;
+            }
+
+            .debug-info {
+                max-height: 150px;
+                font-size: 0.75rem;
+            }
+
+            .chat {
+                padding: 15px;
+            }
+
+            .messages {
+                max-height: 200px;
+                min-height: 120px;
+            }
+
+            .chat-input-container {
+                flex-direction: column;
+            }
+
+            .chat button {
+                width: 100%;
+                padding: 12px;
+            }
+
+            .messages div {
+                max-width: 90%;
+                font-size: 0.9rem;
+            }
+        }
+
+        /* Small phones */
+        @media screen and (max-width: 480px) {
+            .sidebar {
+                max-height: 180px;
+            }
+
+            .sidebar li {
+                padding: 6px 12px;
+                font-size: 0.85rem;
+            }
+
+            video {
+                max-height: 150px;
+            }
+
+            .status-message {
+                font-size: 0.85rem;
+                padding: 10px 15px;
+            }
+
+            .chat input {
+                padding: 12px;
+                font-size: 0.95rem;
+            }
+        }
+
+        /* Landscape orientation */
+        @media screen and (max-height: 600px) and (orientation: landscape) {
+            .sidebar {
+                max-height: 150px;
+            }
+
+            .videos {
+                flex-direction: row;
+            }
+
+            video {
+                max-height: 150px;
+            }
+
+            .chat {
+                max-height: 150px;
+            }
+
+            .messages {
+                max-height: 80px;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -27,6 +602,7 @@
                 <button id="audioCallBtn" disabled>🎤 Audio Call</button>
                 <button id="videoCallBtn" disabled>📹 Video Call</button>
                 <button id="hangupBtn" disabled>🔴 Hang Up</button>
+                <button id="testCameraBtn" onclick="testCamera()">📷 Test Camera</button>
             </div>
             
             <div class="debug-info" id="debug-info" style="display: none;">
@@ -43,701 +619,679 @@
             </div>
         </div>
     </div>
-<button id="testCameraBtn" onclick="testCamera()" style="background: #6c757d; margin-left: 10px;">📷 Test Camera</button>
-<script>
-    const username = "{{ username }}";
-let debugMode = true;
 
-// ---------- Global state ----------
-let localStream = null;
-let remoteStream = null;
-let peerConnection = null;
-let currentCall = null;
-let selectedUser = null;
-let pollingInterval = null;
-let pingInterval = null;
-let mediaPermissions = {
-    audio: false,
-    video: false
-};
-let mediaStatus = {
-    audio: 'unknown', // 'granted', 'denied', 'error', 'busy'
-    video: 'unknown'
-};
+    <script>
+        const username = "{{ username }}";
+        let debugMode = true;
 
-// Track media devices
-let hasAudioDevices = false;
-let hasVideoDevices = false;
+        // ---------- Global state ----------
+        let localStream = null;
+        let remoteStream = null;
+        let peerConnection = null;
+        let currentCall = null;
+        let selectedUser = null;
+        let pollingInterval = null;
+        let pingInterval = null;
+        let mediaPermissions = {
+            audio: false,
+            video: false
+        };
+        let mediaStatus = {
+            audio: 'unknown',
+            video: 'unknown'
+        };
 
-const configuration = {
-    iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' }
-    ]
-};
+        // Track media devices
+        let hasAudioDevices = false;
+        let hasVideoDevices = false;
 
-// ---------- Debug logging ----------
-function debugLog(...args) {
-    if (!debugMode) return;
-    console.log(...args);
-    const debugOutput = document.getElementById('debug-output');
-    if (debugOutput) {
-        const timestamp = new Date().toLocaleTimeString();
-        debugOutput.innerHTML += `[${timestamp}] ${args.join(' ')}\n`;
-        debugOutput.scrollTop = debugOutput.scrollHeight;
-    }
-}
+        const configuration = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' }
+            ]
+        };
 
-// ---------- Check available devices ----------
-async function checkMediaDevices() {
-    try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-            showStatus('Your browser does not support media devices', 'error');
-            return false;
+        // ---------- Debug logging ----------
+        function debugLog(...args) {
+            if (!debugMode) return;
+            console.log(...args);
+            const debugOutput = document.getElementById('debug-output');
+            if (debugOutput) {
+                const timestamp = new Date().toLocaleTimeString();
+                debugOutput.innerHTML += `[${timestamp}] ${args.join(' ')}\n`;
+                debugOutput.scrollTop = debugOutput.scrollHeight;
+            }
         }
-        
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        hasAudioDevices = devices.some(d => d.kind === 'audioinput');
-        hasVideoDevices = devices.some(d => d.kind === 'videoinput');
-        
-        debugLog('Audio devices:', hasAudioDevices, 'Video devices:', hasVideoDevices);
-        
-        return true;
-    } catch (err) {
-        debugLog('Error checking devices:', err);
-        return false;
-    }
-}
 
-// ---------- Show status message ----------
-function showStatus(message, type = 'info') {
-    const statusDiv = document.getElementById('status-message');
-    statusDiv.textContent = message;
-    statusDiv.className = `status-message ${type}`;
-    statusDiv.style.display = 'block';
-    
-    setTimeout(() => {
-        statusDiv.style.display = 'none';
-    }, 5000);
-}
-
-// ---------- Test media permissions with better error handling ----------
-async function testMediaPermissions() {
-    try {
-        await checkMediaDevices();
-        debugLog('Requesting media permissions...');
-        
-        // Test audio first
-        if (hasAudioDevices) {
+        // ---------- Check available devices ----------
+        async function checkMediaDevices() {
             try {
-                const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                mediaPermissions.audio = true;
-                mediaStatus.audio = 'granted';
-                audioStream.getTracks().forEach(track => track.stop());
-                debugLog('Audio permission granted');
-            } catch (audioErr) {
-                debugLog('Audio permission error:', audioErr.name, audioErr.message);
-                mediaPermissions.audio = false;
-                mediaStatus.audio = audioErr.name === 'NotReadableError' ? 'busy' : 'denied';
+                if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+                    showStatus('Your browser does not support media devices', 'error');
+                    return false;
+                }
                 
-                if (audioErr.name === 'NotReadableError') {
-                    showStatus('Microphone is busy (used by another app). Please close other apps using microphone.', 'warning');
-                } else if (audioErr.name === 'NotAllowedError') {
-                    showStatus('Microphone access denied. Please allow access for calls.', 'error');
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                hasAudioDevices = devices.some(d => d.kind === 'audioinput');
+                hasVideoDevices = devices.some(d => d.kind === 'videoinput');
+                
+                debugLog('Audio devices:', hasAudioDevices, 'Video devices:', hasVideoDevices);
+                
+                return true;
+            } catch (err) {
+                debugLog('Error checking devices:', err);
+                return false;
+            }
+        }
+
+        // ---------- Show status message ----------
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status-message');
+            statusDiv.textContent = message;
+            statusDiv.className = `status-message ${type}`;
+            statusDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        // ---------- Test media permissions ----------
+        async function testMediaPermissions() {
+            try {
+                await checkMediaDevices();
+                debugLog('Requesting media permissions...');
+                
+                // Test audio first
+                if (hasAudioDevices) {
+                    try {
+                        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                        mediaPermissions.audio = true;
+                        mediaStatus.audio = 'granted';
+                        audioStream.getTracks().forEach(track => track.stop());
+                        debugLog('Audio permission granted');
+                    } catch (audioErr) {
+                        debugLog('Audio permission error:', audioErr.name, audioErr.message);
+                        mediaPermissions.audio = false;
+                        mediaStatus.audio = audioErr.name === 'NotReadableError' ? 'busy' : 'denied';
+                        
+                        if (audioErr.name === 'NotReadableError') {
+                            showStatus('Microphone is busy. Please close other apps using microphone.', 'warning');
+                        } else if (audioErr.name === 'NotAllowedError') {
+                            showStatus('Microphone access denied. Please allow access for calls.', 'error');
+                        } else {
+                            showStatus('Microphone error: ' + audioErr.message, 'error');
+                        }
+                    }
                 } else {
-                    showStatus('Microphone error: ' + audioErr.message, 'error');
+                    showStatus('No microphone found on your device', 'error');
+                }
+                
+                // Test video separately
+                if (hasVideoDevices) {
+                    try {
+                        const videoStream = await navigator.mediaDevices.getUserMedia({ 
+                            audio: false, 
+                            video: {
+                                width: { ideal: 640 },
+                                height: { ideal: 480 }
+                            }
+                        });
+                        mediaPermissions.video = true;
+                        mediaStatus.video = 'granted';
+                        videoStream.getTracks().forEach(track => track.stop());
+                        debugLog('Video permission granted');
+                    } catch (videoErr) {
+                        debugLog('Video permission error:', videoErr.name, videoErr.message);
+                        mediaPermissions.video = false;
+                        
+                        if (videoErr.name === 'NotReadableError') {
+                            mediaStatus.video = 'busy';
+                            showStatus('Camera is busy. Video calls may not work.', 'warning');
+                        } else if (videoErr.name === 'NotAllowedError') {
+                            mediaStatus.video = 'denied';
+                            showStatus('Camera access denied. Video calls will not work.', 'warning');
+                        } else if (videoErr.name === 'NotFoundError') {
+                            mediaStatus.video = 'notfound';
+                            showStatus('No camera found on your device', 'warning');
+                        } else {
+                            mediaStatus.video = 'error';
+                            showStatus('Camera error: ' + videoErr.message, 'warning');
+                        }
+                    }
+                } else {
+                    mediaPermissions.video = false;
+                    mediaStatus.video = 'notfound';
+                    debugLog('No video devices found');
+                }
+                
+                debugLog('Final permissions - Audio:', mediaPermissions.audio, 'Video:', mediaPermissions.video);
+                debugLog('Media status - Audio:', mediaStatus.audio, 'Video:', mediaStatus.video);
+                
+                return mediaPermissions.audio;
+                
+            } catch (err) {
+                debugLog('Permission test failed:', err);
+                showStatus('Error checking media permissions', 'error');
+                return false;
+            }
+        }
+
+        // ---------- API calls ----------
+        async function apiGet(url) {
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return await res.json();
+            } catch (err) {
+                debugLog('API GET error:', url, err);
+                return { error: err.message };
+            }
+        }
+
+        async function apiPost(url, data) {
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if (!res.ok) {
+                    const error = await res.json();
+                    throw new Error(error.msg || error.error || `HTTP ${res.status}`);
+                }
+                return await res.json();
+            } catch (err) {
+                debugLog('API POST error:', url, err);
+                return { error: err.message };
+            }
+        }
+
+        // ---------- Polling functions ----------
+        async function pollUsers() {
+            const result = await apiGet('/api/users');
+            if (result.error) {
+                if (result.error === 'Not logged in') {
+                    window.location.href = '/login';
+                }
+                return;
+            }
+            
+            const list = document.getElementById('user-list');
+            list.innerHTML = '';
+            
+            result.forEach(u => {
+                if (u.username !== username) {
+                    const li = document.createElement('li');
+                    li.textContent = u.username;
+                    if (u.in_call_with) {
+                        li.textContent += ` (in call with ${u.in_call_with})`;
+                        li.classList.add('busy');
+                    } else {
+                        li.classList.add('available');
+                    }
+                    li.onclick = () => selectUser(u.username, u.in_call_with);
+                    list.appendChild(li);
+                }
+            });
+            
+            updateButtonStates();
+        }
+
+        async function pollMessages() {
+            const msgs = await apiGet('/api/get_messages');
+            if (msgs && !msgs.error) {
+                msgs.forEach(m => addMessage(`${m.from}: ${m.msg}`));
+            }
+        }
+
+        async function pollCallEvents() {
+            const events = await apiGet('/api/call/events');
+            if (events && !events.error) {
+                for (let ev of events) {
+                    await handleCallEvent(ev);
                 }
             }
-        } else {
-            showStatus('No microphone found on your device', 'error');
         }
-        
-        // Test video separately
-        if (hasVideoDevices) {
+
+        async function handleCallEvent(ev) {
+            debugLog('Call event:', ev);
+            
+            switch (ev.type) {
+                case 'incoming_call':
+                    if (currentCall) {
+                        debugLog('Already in call, ignoring incoming');
+                        return;
+                    }
+                    
+                    const accept = confirm(`${ev.from} is calling you for a ${ev.call_type} call. Accept?`);
+                    if (accept) {
+                        await apiPost('/api/call/accept', { from: ev.from });
+                        startCall(ev.from, ev.call_type, true);
+                    } else {
+                        await apiPost('/api/call/reject', { from: ev.from });
+                    }
+                    break;
+                    
+                case 'offer':
+                    if (peerConnection && currentCall) {
+                        try {
+                            await peerConnection.setRemoteDescription(new RTCSessionDescription(ev.offer));
+                            const answer = await peerConnection.createAnswer();
+                            await peerConnection.setLocalDescription(answer);
+                            await apiPost('/api/call/answer', {
+                                to: ev.from,
+                                answer: peerConnection.localDescription
+                            });
+                        } catch (err) {
+                            debugLog('Error handling offer:', err);
+                        }
+                    }
+                    break;
+                    
+                case 'answer':
+                    if (peerConnection) {
+                        try {
+                            await peerConnection.setRemoteDescription(new RTCSessionDescription(ev.answer));
+                        } catch (err) {
+                            debugLog('Error handling answer:', err);
+                        }
+                    }
+                    break;
+                    
+                case 'ice':
+                    if (peerConnection) {
+                        try {
+                            await peerConnection.addIceCandidate(new RTCIceCandidate(ev.candidate));
+                        } catch (err) {
+                            debugLog('Error adding ICE candidate:', err);
+                        }
+                    }
+                    break;
+                    
+                case 'call_accepted':
+                    debugLog('Call accepted by', ev.from);
+                    if (currentCall && currentCall.with === ev.from) {
+                        try {
+                            const offer = await peerConnection.createOffer();
+                            await peerConnection.setLocalDescription(offer);
+                            await apiPost('/api/call/offer', {
+                                to: ev.from,
+                                offer: peerConnection.localDescription
+                            });
+                        } catch (err) {
+                            debugLog('Error creating offer:', err);
+                        }
+                    }
+                    break;
+                    
+                case 'call_rejected':
+                    showStatus(`${ev.from} rejected your call`, 'info');
+                    hangUp();
+                    break;
+                    
+                case 'call_ended':
+                    showStatus(`${ev.from} ended the call`, 'info');
+                    hangUp();
+                    break;
+            }
+        }
+
+        function startPolling() {
+            pollUsers();
+            pollMessages();
+            pollCallEvents();
+            
+            pollingInterval = setInterval(() => {
+                pollUsers();
+                pollMessages();
+                pollCallEvents();
+            }, 1000);
+            
+            pingInterval = setInterval(() => {
+                apiPost('/api/ping', {});
+            }, 30000);
+        }
+
+        // ---------- User selection ----------
+        function selectUser(user, inCallWith) {
+            selectedUser = user;
+            document.getElementById('chat-input').disabled = false;
+            document.getElementById('send-chat').disabled = false;
+            updateButtonStates();
+            debugLog('Selected user:', user, 'Busy:', !!inCallWith);
+        }
+
+        function updateButtonStates() {
+            const audioBtn = document.getElementById('audioCallBtn');
+            const videoBtn = document.getElementById('videoCallBtn');
+            
+            if (selectedUser && !currentCall) {
+                const userElement = Array.from(document.querySelectorAll('#user-list li')).find(
+                    li => li.textContent.includes(selectedUser)
+                );
+                const isBusy = userElement && userElement.classList.contains('busy');
+                
+                audioBtn.disabled = isBusy || !mediaPermissions.audio;
+                
+                const videoAvailable = mediaPermissions.video && mediaStatus.video !== 'busy';
+                videoBtn.disabled = isBusy || (!videoAvailable && !mediaPermissions.audio);
+                
+                if (isBusy) {
+                    audioBtn.title = `${selectedUser} is busy`;
+                    videoBtn.title = `${selectedUser} is busy`;
+                } else {
+                    if (!mediaPermissions.audio) {
+                        audioBtn.title = 'Microphone access required';
+                    }
+                    if (mediaStatus.video === 'busy') {
+                        videoBtn.title = 'Camera is busy - Audio only';
+                        videoBtn.textContent = '📹 Camera Busy (Audio Only)';
+                    } else if (!mediaPermissions.video) {
+                        videoBtn.title = 'Camera not available - Audio only';
+                        videoBtn.textContent = '📹 No Camera (Audio Only)';
+                    } else {
+                        videoBtn.title = 'Video Call';
+                        videoBtn.textContent = '📹 Video Call';
+                    }
+                }
+            } else {
+                audioBtn.disabled = true;
+                videoBtn.disabled = true;
+            }
+        }
+
+        // ---------- Call initiation ----------
+        document.getElementById('audioCallBtn').onclick = () => initiateCall(selectedUser, 'audio');
+        document.getElementById('videoCallBtn').onclick = () => initiateCall(selectedUser, 'video');
+        document.getElementById('hangupBtn').onclick = hangUp;
+
+        async function initiateCall(target, type) {
+            if (!target) {
+                showStatus('Select a user first', 'warning');
+                return;
+            }
+            
+            if (currentCall) {
+                showStatus('You are already in a call', 'warning');
+                return;
+            }
+
+            debugLog('Initiating call to', target, 'type', type);
+            
+            if (type === 'video' && mediaStatus.video === 'busy') {
+                const useAudio = confirm('Your camera is busy. Would you like to make an audio call instead?');
+                if (useAudio) {
+                    type = 'audio';
+                } else {
+                    return;
+                }
+            }
+            
+            const result = await apiPost('/api/call/initiate', { to: target, type: type });
+            
+            if (result.error) {
+                showStatus(result.error, 'error');
+                return;
+            }
+            
+            if (result.busy) {
+                showStatus(result.msg, 'info');
+                return;
+            }
+            
+            await startCall(target, type, false);
+        }
+
+        async function startCall(target, type, isAnswerer = false) {
             try {
-                // Try with simpler constraints first
-                const videoStream = await navigator.mediaDevices.getUserMedia({ 
+                const constraints = {
+                    audio: true
+                };
+                
+                if (type === 'video' && mediaPermissions.video && mediaStatus.video !== 'busy') {
+                    constraints.video = {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        frameRate: { ideal: 15 }
+                    };
+                }
+                
+                debugLog('Requesting media with constraints:', constraints);
+                
+                const mediaPromise = navigator.mediaDevices.getUserMedia(constraints);
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('Media timeout')), 8000);
+                });
+                
+                localStream = await Promise.race([mediaPromise, timeoutPromise]);
+                debugLog('Media access granted');
+                
+                document.getElementById('localVideo').srcObject = localStream;
+                
+                const hasVideo = localStream.getVideoTracks().length > 0;
+                if (type === 'video' && !hasVideo) {
+                    showStatus('Video not available - continuing with audio only', 'warning');
+                    type = 'audio';
+                }
+                
+                localStream.getTracks().forEach(track => {
+                    debugLog('Added track:', track.kind, track.label);
+                });
+                
+                await createPeerConnection(target, type);
+                
+                currentCall = { with: target, type };
+                document.getElementById('hangupBtn').disabled = false;
+                updateButtonStates();
+                
+                showStatus(`Calling ${target}...`, 'info');
+                
+            } catch (err) {
+                debugLog('Media access error:', err.name, err.message);
+                
+                if (err.message === 'Media timeout') {
+                    showStatus('Camera/microphone is not responding. Please check your devices.', 'error');
+                } else if (err.name === 'NotReadableError') {
+                    showStatus('Your camera/microphone is busy. Please close other apps using them and try again.', 'error');
+                    mediaStatus.video = 'busy';
+                } else if (err.name === 'NotAllowedError') {
+                    showStatus('Please allow camera/microphone access', 'error');
+                } else if (err.name === 'NotFoundError') {
+                    showStatus(`No ${type === 'video' ? 'camera' : 'microphone'} found`, 'error');
+                } else if (err.name === 'OverconstrainedError') {
+                    showStatus('Camera cannot satisfy requested settings', 'error');
+                } else {
+                    showStatus('Could not access media: ' + err.message, 'error');
+                }
+                
+                hangUp();
+                updateButtonStates();
+            }
+        }
+
+        async function createPeerConnection(target, type) {
+            peerConnection = new RTCPeerConnection(configuration);
+            remoteStream = new MediaStream();
+            document.getElementById('remoteVideo').srcObject = remoteStream;
+
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+            });
+
+            peerConnection.ontrack = event => {
+                debugLog('Received remote track:', event.track.kind);
+                event.streams[0].getTracks().forEach(track => {
+                    remoteStream.addTrack(track);
+                });
+            };
+
+            peerConnection.onicecandidate = event => {
+                if (event.candidate) {
+                    debugLog('Sending ICE candidate');
+                    apiPost('/api/call/ice', {
+                        to: target,
+                        candidate: event.candidate
+                    });
+                }
+            };
+
+            peerConnection.onconnectionstatechange = () => {
+                debugLog('Connection state:', peerConnection.connectionState);
+                if (peerConnection.connectionState === 'connected') {
+                    showStatus('Call connected!', 'success');
+                } else if (peerConnection.connectionState === 'disconnected' ||
+                           peerConnection.connectionState === 'failed' ||
+                           peerConnection.connectionState === 'closed') {
+                    hangUp();
+                }
+            };
+
+            peerConnection.oniceconnectionstatechange = () => {
+                debugLog('ICE connection state:', peerConnection.iceConnectionState);
+                if (peerConnection.iceConnectionState === 'connected') {
+                    showStatus('Call connected!', 'success');
+                }
+            };
+            
+            peerConnection.onnegotiationneeded = () => {
+                debugLog('Negotiation needed');
+            };
+        }
+
+        function hangUp() {
+            debugLog('Hanging up call');
+            
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            
+            if (localStream) {
+                localStream.getTracks().forEach(t => {
+                    t.stop();
+                    debugLog('Stopped track:', t.kind);
+                });
+                localStream = null;
+            }
+            
+            document.getElementById('localVideo').srcObject = null;
+            document.getElementById('remoteVideo').srcObject = null;
+            
+            if (currentCall) {
+                apiPost('/api/call/hangup', {});
+            }
+            
+            currentCall = null;
+            document.getElementById('hangupBtn').disabled = true;
+            updateButtonStates();
+            
+            showStatus('Call ended', 'info');
+        }
+
+        // ---------- Chat ----------
+        document.getElementById('send-chat').onclick = async () => {
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            
+            if (!selectedUser) {
+                showStatus('Select a user to chat with', 'warning');
+                return;
+            }
+            
+            if (msg) {
+                const result = await apiPost('/api/send_message', {
+                    to: selectedUser,
+                    message: msg
+                });
+                
+                if (!result.error) {
+                    addMessage(`You: ${msg}`);
+                    input.value = '';
+                } else {
+                    showStatus(result.error, 'error');
+                }
+            }
+        };
+
+        document.getElementById('chat-input').onkeypress = (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('send-chat').click();
+            }
+        };
+
+        function addMessage(msg) {
+            const div = document.getElementById('messages');
+            div.innerHTML += `<div>${msg}</div>`;
+            div.scrollTop = div.scrollHeight;
+        }
+
+        // ---------- Logout & cleanup ----------
+        function logout() {
+            if (pollingInterval) clearInterval(pollingInterval);
+            if (pingInterval) clearInterval(pingInterval);
+            
+            if (localStream) {
+                localStream.getTracks().forEach(t => t.stop());
+            }
+            if (peerConnection) {
+                peerConnection.close();
+            }
+            
+            window.location.href = '/logout';
+        }
+
+        // ---------- Initialize ----------
+        window.onload = async () => {
+            debugLog('App initialized for user:', username);
+            
+            await testMediaPermissions();
+            startPolling();
+            
+            if (debugMode) {
+                document.getElementById('debug-info').style.display = 'block';
+            }
+        };
+
+        window.onbeforeunload = () => {
+            if (localStream) {
+                localStream.getTracks().forEach(t => t.stop());
+            }
+            if (peerConnection) {
+                peerConnection.close();
+            }
+        };
+
+        // Test camera function
+        async function testCamera() {
+            try {
+                showStatus('Testing camera...', 'info');
+                const stream = await navigator.mediaDevices.getUserMedia({ 
                     audio: false, 
                     video: {
                         width: { ideal: 640 },
                         height: { ideal: 480 }
                     }
                 });
-                mediaPermissions.video = true;
-                mediaStatus.video = 'granted';
-                videoStream.getTracks().forEach(track => track.stop());
-                debugLog('Video permission granted');
-            } catch (videoErr) {
-                debugLog('Video permission error:', videoErr.name, videoErr.message);
-                mediaPermissions.video = false;
+                showStatus('Camera working!', 'success');
+                stream.getTracks().forEach(t => t.stop());
                 
-                if (videoErr.name === 'NotReadableError') {
+                mediaStatus.video = 'granted';
+                mediaPermissions.video = true;
+                updateButtonStates();
+                
+            } catch (err) {
+                debugLog('Camera test error:', err.name, err.message);
+                if (err.name === 'NotReadableError') {
+                    showStatus('Camera is busy. Please close other apps using camera.', 'error');
                     mediaStatus.video = 'busy';
-                    showStatus('Camera is busy (used by another app). Video calls may not work.', 'warning');
-                } else if (videoErr.name === 'NotAllowedError') {
-                    mediaStatus.video = 'denied';
-                    showStatus('Camera access denied. Video calls will not work.', 'warning');
-                } else if (videoErr.name === 'NotFoundError') {
-                    mediaStatus.video = 'notfound';
-                    showStatus('No camera found on your device', 'warning');
                 } else {
-                    mediaStatus.video = 'error';
-                    showStatus('Camera error: ' + videoErr.message, 'warning');
+                    showStatus('Camera test failed: ' + err.message, 'error');
                 }
             }
-        } else {
-            mediaPermissions.video = false;
-            mediaStatus.video = 'notfound';
-            debugLog('No video devices found');
         }
-        
-        debugLog('Final permissions - Audio:', mediaPermissions.audio, 'Video:', mediaPermissions.video);
-        debugLog('Media status - Audio:', mediaStatus.audio, 'Video:', mediaStatus.video);
-        
-        return mediaPermissions.audio;
-        
-    } catch (err) {
-        debugLog('Permission test failed:', err);
-        showStatus('Error checking media permissions', 'error');
-        return false;
-    }
-}
-
-// ---------- API calls ----------
-async function apiGet(url) {
-    try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return await res.json();
-    } catch (err) {
-        debugLog('API GET error:', url, err);
-        return { error: err.message };
-    }
-}
-
-async function apiPost(url, data) {
-    try {
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        if (!res.ok) {
-            const error = await res.json();
-            throw new Error(error.msg || error.error || `HTTP ${res.status}`);
-        }
-        return await res.json();
-    } catch (err) {
-        debugLog('API POST error:', url, err);
-        return { error: err.message };
-    }
-}
-
-// ---------- Polling functions ----------
-async function pollUsers() {
-    const result = await apiGet('/api/users');
-    if (result.error) {
-        if (result.error === 'Not logged in') {
-            window.location.href = '/login';
-        }
-        return;
-    }
-    
-    const list = document.getElementById('user-list');
-    list.innerHTML = '';
-    
-    result.forEach(u => {
-        if (u.username !== username) {
-            const li = document.createElement('li');
-            li.textContent = u.username;
-            if (u.in_call_with) {
-                li.textContent += ` (in call with ${u.in_call_with})`;
-                li.classList.add('busy');
-            } else {
-                li.classList.add('available');
-            }
-            li.onclick = () => selectUser(u.username, u.in_call_with);
-            list.appendChild(li);
-        }
-    });
-    
-    updateButtonStates();
-}
-
-async function pollMessages() {
-    const msgs = await apiGet('/api/get_messages');
-    if (msgs && !msgs.error) {
-        msgs.forEach(m => addMessage(`${m.from}: ${m.msg}`));
-    }
-}
-
-async function pollCallEvents() {
-    const events = await apiGet('/api/call/events');
-    if (events && !events.error) {
-        for (let ev of events) {
-            await handleCallEvent(ev);
-        }
-    }
-}
-
-async function handleCallEvent(ev) {
-    debugLog('Call event:', ev);
-    
-    switch (ev.type) {
-        case 'incoming_call':
-            if (currentCall) {
-                debugLog('Already in call, ignoring incoming');
-                return;
-            }
-            
-            const accept = confirm(`${ev.from} is calling you for a ${ev.call_type} call. Accept?`);
-            if (accept) {
-                await apiPost('/api/call/accept', { from: ev.from });
-                startCall(ev.from, ev.call_type, true);
-            } else {
-                await apiPost('/api/call/reject', { from: ev.from });
-            }
-            break;
-            
-        case 'offer':
-            if (peerConnection && currentCall) {
-                try {
-                    await peerConnection.setRemoteDescription(new RTCSessionDescription(ev.offer));
-                    const answer = await peerConnection.createAnswer();
-                    await peerConnection.setLocalDescription(answer);
-                    await apiPost('/api/call/answer', {
-                        to: ev.from,
-                        answer: peerConnection.localDescription
-                    });
-                } catch (err) {
-                    debugLog('Error handling offer:', err);
-                }
-            }
-            break;
-            
-        case 'answer':
-            if (peerConnection) {
-                try {
-                    await peerConnection.setRemoteDescription(new RTCSessionDescription(ev.answer));
-                } catch (err) {
-                    debugLog('Error handling answer:', err);
-                }
-            }
-            break;
-            
-        case 'ice':
-            if (peerConnection) {
-                try {
-                    await peerConnection.addIceCandidate(new RTCIceCandidate(ev.candidate));
-                } catch (err) {
-                    debugLog('Error adding ICE candidate:', err);
-                }
-            }
-            break;
-            
-        case 'call_accepted':
-            debugLog('Call accepted by', ev.from);
-            if (currentCall && currentCall.with === ev.from) {
-                try {
-                    const offer = await peerConnection.createOffer();
-                    await peerConnection.setLocalDescription(offer);
-                    await apiPost('/api/call/offer', {
-                        to: ev.from,
-                        offer: peerConnection.localDescription
-                    });
-                } catch (err) {
-                    debugLog('Error creating offer:', err);
-                }
-            }
-            break;
-            
-        case 'call_rejected':
-            showStatus(`${ev.from} rejected your call`, 'info');
-            hangUp();
-            break;
-            
-        case 'call_ended':
-            showStatus(`${ev.from} ended the call`, 'info');
-            hangUp();
-            break;
-    }
-}
-
-function startPolling() {
-    pollUsers();
-    pollMessages();
-    pollCallEvents();
-    
-    pollingInterval = setInterval(() => {
-        pollUsers();
-        pollMessages();
-        pollCallEvents();
-    }, 1000);
-    
-    pingInterval = setInterval(() => {
-        apiPost('/api/ping', {});
-    }, 30000);
-}
-
-// ---------- User selection ----------
-function selectUser(user, inCallWith) {
-    selectedUser = user;
-    document.getElementById('chat-input').disabled = false;
-    document.getElementById('send-chat').disabled = false;
-    updateButtonStates();
-    debugLog('Selected user:', user, 'Busy:', !!inCallWith);
-}
-
-function updateButtonStates() {
-    const audioBtn = document.getElementById('audioCallBtn');
-    const videoBtn = document.getElementById('videoCallBtn');
-    const videoCallBtn = document.getElementById('videoCallBtn');
-    
-    if (selectedUser && !currentCall) {
-        const userElement = Array.from(document.querySelectorAll('#user-list li')).find(
-            li => li.textContent.includes(selectedUser)
-        );
-        const isBusy = userElement && userElement.classList.contains('busy');
-        
-        // Audio button enabled if we have audio permission and target not busy
-        audioBtn.disabled = isBusy || !mediaPermissions.audio;
-        
-        // Video button enabled only if:
-        // 1. Target not busy
-        // 2. We have video permission AND video is not busy
-        // 3. Or we can fallback to audio only
-        const videoAvailable = mediaPermissions.video && mediaStatus.video !== 'busy';
-        videoBtn.disabled = isBusy || (!videoAvailable && !mediaPermissions.audio);
-        
-        // Update button titles with helpful messages
-        if (isBusy) {
-            audioBtn.title = `${selectedUser} is busy`;
-            videoBtn.title = `${selectedUser} is busy`;
-        } else {
-            if (!mediaPermissions.audio) {
-                audioBtn.title = 'Microphone access required';
-            }
-            if (mediaStatus.video === 'busy') {
-                videoBtn.title = 'Camera is busy - Audio only';
-                videoBtn.textContent = '📹 Camera Busy (Audio Only)';
-            } else if (!mediaPermissions.video) {
-                videoBtn.title = 'Camera not available - Audio only';
-                videoBtn.textContent = '📹 No Camera (Audio Only)';
-            } else {
-                videoBtn.title = 'Video Call';
-                videoBtn.textContent = '📹 Video Call';
-            }
-        }
-    } else {
-        audioBtn.disabled = true;
-        videoBtn.disabled = true;
-    }
-}
-
-// ---------- Call initiation ----------
-document.getElementById('audioCallBtn').onclick = () => initiateCall(selectedUser, 'audio');
-document.getElementById('videoCallBtn').onclick = () => initiateCall(selectedUser, 'video');
-document.getElementById('hangupBtn').onclick = hangUp;
-
-async function initiateCall(target, type) {
-    if (!target) {
-        showStatus('Select a user first', 'warning');
-        return;
-    }
-    
-    if (currentCall) {
-        showStatus('You are already in a call', 'warning');
-        return;
-    }
-
-    debugLog('Initiating call to', target, 'type', type);
-    
-    // If video requested but camera is busy, offer audio only option
-    if (type === 'video' && mediaStatus.video === 'busy') {
-        const useAudio = confirm('Your camera is busy. Would you like to make an audio call instead?');
-        if (useAudio) {
-            type = 'audio';
-        } else {
-            return;
-        }
-    }
-    
-    const result = await apiPost('/api/call/initiate', { to: target, type: type });
-    
-    if (result.error) {
-        showStatus(result.error, 'error');
-        return;
-    }
-    
-    if (result.busy) {
-        showStatus(result.msg, 'info');
-        return;
-    }
-    
-    await startCall(target, type, false);
-}
-
-async function startCall(target, type, isAnswerer = false) {
-    try {
-        // Build constraints based on what's available
-        const constraints = {
-            audio: true
-        };
-        
-        // Only request video if:
-        // 1. Call type is video
-        // 2. We have video permission
-        // 3. Camera is not busy
-        if (type === 'video' && mediaPermissions.video && mediaStatus.video !== 'busy') {
-            constraints.video = {
-                width: { ideal: 640 },
-                height: { ideal: 480 },
-                frameRate: { ideal: 15 }
-            };
-        }
-        
-        debugLog('Requesting media with constraints:', constraints);
-        
-        // Add timeout to getUserMedia
-        const mediaPromise = navigator.mediaDevices.getUserMedia(constraints);
-        const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Media timeout')), 8000);
-        });
-        
-        localStream = await Promise.race([mediaPromise, timeoutPromise]);
-        debugLog('Media access granted');
-        
-        document.getElementById('localVideo').srcObject = localStream;
-        
-        // Check if we got video tracks
-        const hasVideo = localStream.getVideoTracks().length > 0;
-        if (type === 'video' && !hasVideo) {
-            showStatus('Video not available - continuing with audio only', 'warning');
-            type = 'audio';
-        }
-        
-        // Show what tracks we have
-        localStream.getTracks().forEach(track => {
-            debugLog('Added track:', track.kind, track.label);
-        });
-        
-        await createPeerConnection(target, type);
-        
-        currentCall = { with: target, type };
-        document.getElementById('hangupBtn').disabled = false;
-        updateButtonStates();
-        
-        showStatus(`Calling ${target}...`, 'info');
-        
-    } catch (err) {
-        debugLog('Media access error:', err.name, err.message);
-        
-        if (err.message === 'Media timeout') {
-            showStatus('Camera/microphone is not responding. Please check your devices.', 'error');
-        } else if (err.name === 'NotReadableError') {
-            showStatus('Your camera/microphone is busy. Please close other apps using them and try again.', 'error');
-            mediaStatus.video = 'busy';
-        } else if (err.name === 'NotAllowedError') {
-            showStatus('Please allow camera/microphone access', 'error');
-        } else if (err.name === 'NotFoundError') {
-            showStatus(`No ${type === 'video' ? 'camera' : 'microphone'} found`, 'error');
-        } else if (err.name === 'OverconstrainedError') {
-            showStatus('Camera cannot satisfy requested settings', 'error');
-        } else {
-            showStatus('Could not access media: ' + err.message, 'error');
-        }
-        
-        hangUp();
-        updateButtonStates();
-    }
-}
-
-async function createPeerConnection(target, type) {
-    peerConnection = new RTCPeerConnection(configuration);
-    remoteStream = new MediaStream();
-    document.getElementById('remoteVideo').srcObject = remoteStream;
-
-    // Add local tracks
-    localStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, localStream);
-    });
-
-    // Handle remote tracks
-    peerConnection.ontrack = event => {
-        debugLog('Received remote track:', event.track.kind);
-        event.streams[0].getTracks().forEach(track => {
-            remoteStream.addTrack(track);
-        });
-    };
-
-    // Handle ICE candidates
-    peerConnection.onicecandidate = event => {
-        if (event.candidate) {
-            debugLog('Sending ICE candidate');
-            apiPost('/api/call/ice', {
-                to: target,
-                candidate: event.candidate
-            });
-        }
-    };
-
-    // Connection state changes
-    peerConnection.onconnectionstatechange = () => {
-        debugLog('Connection state:', peerConnection.connectionState);
-        if (peerConnection.connectionState === 'connected') {
-            showStatus('Call connected!', 'success');
-        } else if (peerConnection.connectionState === 'disconnected' ||
-                   peerConnection.connectionState === 'failed' ||
-                   peerConnection.connectionState === 'closed') {
-            hangUp();
-        }
-    };
-
-    peerConnection.oniceconnectionstatechange = () => {
-        debugLog('ICE connection state:', peerConnection.iceConnectionState);
-        if (peerConnection.iceConnectionState === 'connected') {
-            showStatus('Call connected!', 'success');
-        }
-    };
-    
-    peerConnection.onnegotiationneeded = () => {
-        debugLog('Negotiation needed');
-    };
-}
-
-function hangUp() {
-    debugLog('Hanging up call');
-    
-    if (peerConnection) {
-        peerConnection.close();
-        peerConnection = null;
-    }
-    
-    if (localStream) {
-        localStream.getTracks().forEach(t => {
-            t.stop();
-            debugLog('Stopped track:', t.kind);
-        });
-        localStream = null;
-    }
-    
-    document.getElementById('localVideo').srcObject = null;
-    document.getElementById('remoteVideo').srcObject = null;
-    
-    if (currentCall) {
-        apiPost('/api/call/hangup', {});
-    }
-    
-    currentCall = null;
-    document.getElementById('hangupBtn').disabled = true;
-    updateButtonStates();
-    
-    showStatus('Call ended', 'info');
-}
-
-// ---------- Chat ----------
-document.getElementById('send-chat').onclick = async () => {
-    const input = document.getElementById('chat-input');
-    const msg = input.value.trim();
-    
-    if (!selectedUser) {
-        showStatus('Select a user to chat with', 'warning');
-        return;
-    }
-    
-    if (msg) {
-        const result = await apiPost('/api/send_message', {
-            to: selectedUser,
-            message: msg
-        });
-        
-        if (!result.error) {
-            addMessage(`You: ${msg}`);
-            input.value = '';
-        } else {
-            showStatus(result.error, 'error');
-        }
-    }
-};
-
-document.getElementById('chat-input').onkeypress = (e) => {
-    if (e.key === 'Enter') {
-        document.getElementById('send-chat').click();
-    }
-};
-
-function addMessage(msg) {
-    const div = document.getElementById('messages');
-    div.innerHTML += `<div>${msg}</div>`;
-    div.scrollTop = div.scrollHeight;
-}
-
-// ---------- Logout & cleanup ----------
-function logout() {
-    if (pollingInterval) clearInterval(pollingInterval);
-    if (pingInterval) clearInterval(pingInterval);
-    
-    if (localStream) {
-        localStream.getTracks().forEach(t => t.stop());
-    }
-    if (peerConnection) {
-        peerConnection.close();
-    }
-    
-    window.location.href = '/logout';
-}
-
-// ---------- Initialize ----------
-window.onload = async () => {
-    debugLog('App initialized for user:', username);
-    
-    await testMediaPermissions();
-    startPolling();
-    
-    if (debugMode) {
-        document.getElementById('debug-info').style.display = 'block';
-    }
-};
-
-window.onbeforeunload = () => {
-    if (localStream) {
-        localStream.getTracks().forEach(t => t.stop());
-    }
-    if (peerConnection) {
-        peerConnection.close();
-    }
-};
-
-// Add test camera function
-async function testCamera() {
-    try {
-        showStatus('Testing camera...', 'info');
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            audio: false, 
-            video: {
-                width: { ideal: 640 },
-                height: { ideal: 480 }
-            }
-        });
-        showStatus('Camera working!', 'success');
-        stream.getTracks().forEach(t => t.stop());
-        
-        // Update status
-        mediaStatus.video = 'granted';
-        mediaPermissions.video = true;
-        updateButtonStates();
-        
-    } catch (err) {
-        debugLog('Camera test error:', err.name, err.message);
-        if (err.name === 'NotReadableError') {
-            showStatus('Camera is busy. Please close other apps using camera.', 'error');
-            mediaStatus.video = 'busy';
-        } else {
-            showStatus('Camera test failed: ' + err.message, 'error');
-        }
-    }
-}
-</script>
+    </script>
 </body>
 </html>
