@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login - Flask Call & Chat</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="login-container">
+        <h2>🔊 Flask Call & Chat</h2>
+        {% if error %}
+            <div class="error">{{ error }}</div>
+        {% endif %}
+        <form method="post">
+            <input type="text" name="username" placeholder="Username" required autofocus>
+            <input type="password" name="password" placeholder="Password" required>
+            <button type="submit">Login</button>
+        </form>
+        <p>Available users: alice, bob, charlie, david, eve (all passwords: username + 123)</p>
+        <p>Example: alice / alice123</p>
+    </div>
+</body>
+</html>
