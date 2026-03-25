@@ -1,7 +1,32 @@
 [
-    {"username": "alice", "password": "alice123"},
-    {"username": "bob", "password": "bob123"},
-    {"username": "charlie", "password": "charlie123"},
-    {"username": "david", "password": "david123"},
-    {"username": "eve", "password": "eve123"}
+  {
+    "username": "superadmin",
+    "password": "super123",
+    "role": "super_admin",
+    "balance": 0
+  },
+  {
+    "username": "alice",
+    "password": "alice123",
+    "role": "admin",
+    "balance": 0
+  },
+  {
+    "username": "bob",
+    "password": "bob123",
+    "role": "normal",
+    "balance": 130.0
+  },
+  {
+    "username": "charlie",
+    "password": "charlie123",
+    "role": "normal",
+    "balance": 5.0
+  },
+  {
+    "username": "david",
+    "password": "david123",
+    "role": "normal",
+    "balance": 2.0
+  }
 ]
