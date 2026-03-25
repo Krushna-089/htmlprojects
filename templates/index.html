@@ -589,6 +589,16 @@
             <button id="logout" onclick="logout()">Logout</button>
         </div>
         
+        <div class="balance-section" style="background: #fff; padding: 10px; border-radius: 10px; margin-bottom: 15px;">
+            <strong>Balance: ₹<span id="balance">0.00</span></strong>
+            <form id="addBalanceForm" style="display: inline-block; margin-left: 10px;">
+                <input type="number" id="addAmount" step="0.01" min="0.01" placeholder="Amount" style="width: 100px; padding: 5px;">
+                <button type="submit" style="padding: 5px 10px;">Add</button>
+            </form>
+        </div>
+
+
+
         <div class="main">
             <!-- Status messages -->
             <div id="status-message" class="status-message"></div>
@@ -1228,6 +1238,29 @@
             div.scrollTop = div.scrollHeight;
         }
 
+
+        // Fetch balance on load
+        async function fetchBalance() {
+            const res = await apiGet('/api/user/balance');
+            if (!res.error) {
+                document.getElementById('balance').innerText = res.balance.toFixed(2);
+            }
+        }
+
+        // Add balance
+        document.getElementById('addBalanceForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const amount = document.getElementById('addAmount').value;
+            const res = await apiPost('/api/user/add_balance', { amount: parseFloat(amount) });
+            if (!res.error) {
+                fetchBalance();
+                showStatus('Balance updated!', 'success');
+            } else {
+                showStatus(res.error, 'error');
+            }
+        };
+
+        
         // ---------- Logout & cleanup ----------
         function logout() {
             if (pollingInterval) clearInterval(pollingInterval);
@@ -1245,6 +1278,7 @@
 
         // ---------- Initialize ----------
         window.onload = async () => {
+            fetchBalance();
             debugLog('App initialized for user:', username);
             
             await testMediaPermissions();
