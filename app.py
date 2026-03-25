@@ -156,10 +156,17 @@ def login():
         if username in USERS and USERS[username]['password'] == password:
             session['username'] = username
             session.permanent = True
+            
+            # Add to online users
             online_users.add(username)
             user_sessions[username] = time.time()
+            
             if username not in user_call_status:
                 user_call_status[username] = None
+            
+            # Debug logging
+            print(f"User {username} logged in. Online users: {online_users}")
+            
             role = USERS[username]['role']
             if role == 'super_admin':
                 return redirect(url_for('super_admin_dashboard'))
@@ -169,6 +176,7 @@ def login():
                 return redirect(url_for('index'))
         return render_template('login.html', error='Invalid credentials')
     return render_template('login.html')
+
 
 @app.route('/logout')
 def logout():
@@ -199,6 +207,8 @@ def ping():
         user_sessions[username] = time.time()
     return jsonify({'status': 'ok'})
 
+# Update the get_users endpoint in app.py
+
 @app.route('/api/users')
 def get_users():
     clean_stale_users()
@@ -208,23 +218,41 @@ def get_users():
 
     role = get_user_role(username)
     users_list = []
-    for u in online_users:
+    
+    # Get all registered users (not just online ones for the list)
+    # But we need to show which are online
+    for u in USERS.keys():
         if u == username:
             continue
+            
         # Filter based on role
         u_role = get_user_role(u)
+        
+        # Normal users should only see admin users
         if role == 'normal' and u_role != 'admin':
             continue
+        
+        # Admin users should only see normal users
         if role == 'admin' and u_role != 'normal':
             continue
-        # super_admin sees all
-        users_list.append({
-            'username': u,
-            'in_call_with': user_call_status.get(u),
-            'role': u_role
-        })
+        
+        # Super admin sees all users
+        # Check if user is online
+        is_online = u in online_users
+        
+        # Only show users that are online
+        # But also show offline users? Let's only show online users for now
+        if is_online:
+            users_list.append({
+                'username': u,
+                'in_call_with': user_call_status.get(u),
+                'role': u_role,
+                'online': True
+            })
+    
     return jsonify(users_list)
 
+    
 @app.route('/api/send_message', methods=['POST'])
 def send_message():
     username = session.get('username')
@@ -535,6 +563,20 @@ def get_call_events():
     user_call_events[username].clear()
     return jsonify(events)
 
+@app.route('/api/debug/users')
+def debug_users():
+    username = session.get('username')
+    if not username or get_user_role(username) != 'super_admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    return jsonify({
+        'online_users': list(online_users),
+        'all_registered_users': list(USERS.keys()),
+        'user_sessions': {u: time.time() - t for u, t in user_sessions.items()}
+    })
+
+
+    
 # -------------------------------------------------------------------
 if __name__ == '__main__':
     # Ensure calls.json exists
@@ -547,3 +589,4 @@ if __name__ == '__main__':
         save_users()
     
     app.run(debug=True, host='0.0.0.0', port=5000)
+
