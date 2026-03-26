@@ -1,12 +1,19 @@
 import json
 import time
 import os
+import razorpay
 from flask import Flask, render_template, request, session, redirect, url_for, jsonify
 from collections import defaultdict
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'
 app.config['PERMANENT_SESSION_LIFETIME'] = 3600
+
+# Razorpay test credentials
+RAZORPAY_KEY_ID = 'rzp_test_SVN2yrFqc9l2Lv'
+RAZORPAY_KEY_SECRET = 'JLPwRukCEO0OIbOZaDM6MeKN'
+
+client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
 
 # -------------------------------------------------------------------
 # Data handling functions with proper error handling
@@ -64,7 +71,7 @@ def load_calls():
         if os.path.exists('calls.json'):
             with open('calls.json') as f:
                 content = f.read().strip()
-                if content:  # Check if file is not empty
+                if content:
                     return json.loads(content)
                 else:
                     return []
@@ -104,7 +111,7 @@ user_sessions = {}
 user_call_status = defaultdict(lambda: None)
 user_messages = defaultdict(list)
 user_call_events = defaultdict(list)
-active_calls = {}          # key: caller (initiator), value: dict {callee, type, start_time}
+active_calls = {}
 
 # -------------------------------------------------------------------
 def clean_stale_users():
@@ -156,17 +163,11 @@ def login():
         if username in USERS and USERS[username]['password'] == password:
             session['username'] = username
             session.permanent = True
-            
-            # Add to online users
             online_users.add(username)
             user_sessions[username] = time.time()
-            
             if username not in user_call_status:
                 user_call_status[username] = None
-            
-            # Debug logging
             print(f"User {username} logged in. Online users: {online_users}")
-            
             role = USERS[username]['role']
             if role == 'super_admin':
                 return redirect(url_for('super_admin_dashboard'))
@@ -176,7 +177,6 @@ def login():
                 return redirect(url_for('index'))
         return render_template('login.html', error='Invalid credentials')
     return render_template('login.html')
-
 
 @app.route('/logout')
 def logout():
@@ -192,7 +192,6 @@ def logout():
             del user_call_status[username]
         if username in user_sessions:
             del user_sessions[username]
-        # Remove from active calls if any
         for caller, call in list(active_calls.items()):
             if caller == username or call['callee'] == username:
                 del active_calls[caller]
@@ -207,8 +206,6 @@ def ping():
         user_sessions[username] = time.time()
     return jsonify({'status': 'ok'})
 
-# Update the get_users endpoint in app.py
-
 @app.route('/api/users')
 def get_users():
     clean_stale_users()
@@ -218,30 +215,15 @@ def get_users():
 
     role = get_user_role(username)
     users_list = []
-    
-    # Get all registered users (not just online ones for the list)
-    # But we need to show which are online
     for u in USERS.keys():
         if u == username:
             continue
-            
-        # Filter based on role
         u_role = get_user_role(u)
-        
-        # Normal users should only see admin users
         if role == 'normal' and u_role != 'admin':
             continue
-        
-        # Admin users should only see normal users
         if role == 'admin' and u_role != 'normal':
             continue
-        
-        # Super admin sees all users
-        # Check if user is online
         is_online = u in online_users
-        
-        # Only show users that are online
-        # But also show offline users? Let's only show online users for now
         if is_online:
             users_list.append({
                 'username': u,
@@ -249,10 +231,8 @@ def get_users():
                 'role': u_role,
                 'online': True
             })
-    
     return jsonify(users_list)
 
-    
 @app.route('/api/send_message', methods=['POST'])
 def send_message():
     username = session.get('username')
@@ -290,26 +270,74 @@ def get_balance():
         return jsonify({'error': 'Not logged in'}), 401
     return jsonify({'balance': get_user_balance(username)})
 
-@app.route('/api/user/add_balance', methods=['POST'])
-def add_balance():
+# NEW: Create Razorpay order
+@app.route('/api/create_order', methods=['POST'])
+def create_order():
     username = session.get('username')
     if not username:
         return jsonify({'error': 'Not logged in'}), 401
-    
+
     role = get_user_role(username)
     if role != 'normal':
         return jsonify({'error': 'Only normal users can add balance'}), 403
-    
+
     data = request.get_json()
-    amount = data.get('amount', 0)
+    amount = data.get('amount')
     try:
-        amount = float(amount)
+        amount = int(float(amount) * 100)  # Convert rupees to paise
         if amount <= 0:
             return jsonify({'error': 'Amount must be positive'}), 400
-        update_balance(username, amount)
-        return jsonify({'status': 'ok', 'new_balance': get_user_balance(username)})
     except:
         return jsonify({'error': 'Invalid amount'}), 400
+
+    order_data = {
+        'amount': amount,
+        'currency': 'INR',
+        'receipt': f'receipt_{username}_{int(time.time())}',
+        'payment_capture': 1
+    }
+    try:
+        order = client.order.create(order_data)
+        return jsonify({
+            'order_id': order['id'],
+            'amount': amount,
+            'currency': 'INR',
+            'key': RAZORPAY_KEY_ID
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# NEW: Verify payment and update balance
+@app.route('/api/verify_payment', methods=['POST'])
+def verify_payment():
+    username = session.get('username')
+    if not username:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    role = get_user_role(username)
+    if role != 'normal':
+        return jsonify({'error': 'Only normal users can add balance'}), 403
+
+    data = request.get_json()
+    order_id = data.get('order_id')
+    payment_id = data.get('payment_id')
+    signature = data.get('signature')
+
+    params_dict = {
+        'razorpay_order_id': order_id,
+        'razorpay_payment_id': payment_id,
+        'razorpay_signature': signature
+    }
+    try:
+        client.utility.verify_payment_signature(params_dict)
+        # Payment successful, update balance
+        order = client.order.fetch(order_id)
+        amount_in_paise = order['amount']
+        amount_in_rupees = amount_in_paise / 100.0
+        update_balance(username, amount_in_rupees)
+        return jsonify({'status': 'success', 'new_balance': get_user_balance(username)})
+    except Exception as e:
+        return jsonify({'error': 'Payment verification failed'}), 400
 
 @app.route('/api/admin/stats')
 def admin_stats():
@@ -321,9 +349,7 @@ def admin_stats():
         return jsonify({'error': 'Unauthorized'}), 403
 
     calls = load_calls()
-    
     if role == 'super_admin':
-        # For each admin, total time spent with normal users
         stats = {}
         for call in calls:
             if call.get('caller_role') == 'admin' and call.get('callee_role') == 'normal':
@@ -332,8 +358,6 @@ def admin_stats():
             elif call.get('caller_role') == 'normal' and call.get('callee_role') == 'admin':
                 admin = call.get('callee')
                 stats[admin] = stats.get(admin, 0) + call.get('duration', 0)
-        
-        # Format as hh:mm:ss
         result = {}
         for admin, seconds in stats.items():
             h = int(seconds // 3600)
@@ -342,7 +366,6 @@ def admin_stats():
             result[admin] = f"{h:02d}:{m:02d}:{s:02d}"
         return jsonify(result)
     else:
-        # For admin, own stats with normal users
         stats = {'total_duration': 0, 'calls': []}
         for call in calls:
             if call.get('caller') == username or call.get('callee') == username:
@@ -355,7 +378,7 @@ def admin_stats():
         return jsonify(stats)
 
 # -------------------------------------------------------------------
-# Call signaling endpoints
+# Call signaling endpoints (unchanged)
 @app.route('/api/call/initiate', methods=['POST'])
 def initiate_call():
     username = session.get('username')
@@ -364,7 +387,6 @@ def initiate_call():
     data = request.get_json()
     target = data.get('to')
     call_type = data.get('type')
-    
     if target not in online_users:
         return jsonify({'error': 'User offline'}), 400
     if user_call_status.get(target) is not None:
@@ -373,14 +395,11 @@ def initiate_call():
     caller_role = get_user_role(username)
     callee_role = get_user_role(target)
 
-    # Role restrictions
     if caller_role == 'normal' and callee_role != 'admin':
         return jsonify({'error': 'Normal users can only call admins'}), 403
     if caller_role == 'admin' and callee_role != 'normal':
         return jsonify({'error': 'Admin users can only call normal users'}), 403
-    # Super admin can call anyone
 
-    # Balance check for normal caller
     if caller_role == 'normal':
         balance = get_user_balance(username)
         min_cost = 0.6 if call_type == 'audio' else 1.2
@@ -453,21 +472,15 @@ def call_accept():
     data = request.get_json()
     caller = data.get('from')
     call_type = data.get('call_type', 'audio')
-    
     if caller not in online_users:
         return jsonify({'error': 'Caller offline'}), 400
-
-    # Mark both as in call
     user_call_status[caller] = username
     user_call_status[username] = caller
-
-    # Store call session
     active_calls[caller] = {
         'callee': username,
         'type': call_type,
         'start_time': time.time()
     }
-
     user_call_events[caller].append({
         'type': 'call_accepted',
         'from': username
@@ -494,7 +507,6 @@ def call_hangup():
     if not username:
         return jsonify({'error': 'Not logged in'}), 401
 
-    # Find which call session involves this user
     session_key = None
     call_data = None
     for caller, data in list(active_calls.items()):
@@ -504,27 +516,22 @@ def call_hangup():
             break
 
     if session_key and call_data:
-        # Compute duration
         end_time = time.time()
         start_time = call_data['start_time']
         duration = end_time - start_time
 
-        # Determine caller and callee
         caller = session_key
         callee = call_data['callee']
         call_type = call_data['type']
         caller_role = get_user_role(caller)
         callee_role = get_user_role(callee)
 
-        # Compute cost (only if caller is normal and not super admin)
         cost = 0.0
         if caller_role == 'normal':
             rate = 0.6 if call_type == 'audio' else 1.2
             cost = round((duration / 60.0) * rate, 2)
-            # Deduct from caller's balance
             update_balance(caller, -cost)
 
-        # Save call record
         calls = load_calls()
         calls.append({
             'caller': caller,
@@ -538,11 +545,8 @@ def call_hangup():
             'callee_role': callee_role
         })
         save_calls(calls)
-
-        # Clean up
         del active_calls[session_key]
 
-    # Notify other party
     other = user_call_status.get(username)
     if other and other in online_users:
         user_call_status[other] = None
@@ -568,25 +572,17 @@ def debug_users():
     username = session.get('username')
     if not username or get_user_role(username) != 'super_admin':
         return jsonify({'error': 'Unauthorized'}), 403
-    
     return jsonify({
         'online_users': list(online_users),
         'all_registered_users': list(USERS.keys()),
         'user_sessions': {u: time.time() - t for u, t in user_sessions.items()}
     })
 
-
-    
 # -------------------------------------------------------------------
 if __name__ == '__main__':
-    # Ensure calls.json exists
     if not os.path.exists('calls.json'):
         with open('calls.json', 'w') as f:
             json.dump([], f)
-    
-    # Ensure users.json exists
     if not os.path.exists('users.json'):
         save_users()
-    
     app.run(debug=True, host='0.0.0.0', port=5000)
-
